@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>File Split & Reassemble Prototype</title>
+  <title>File Split & Save to Subfolder</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
     button { margin: 10px 0; padding: 10px 20px; cursor: pointer; }
@@ -10,21 +11,16 @@
   </style>
 </head>
 <body>
-  <h2>File Split & Reassemble Prototype</h2>
+  <h2>File Split & Save (Base64 JSON)</h2>
   
   <input type="file" id="fileInput"><br>
   <button id="processBtn">Process File</button>
-  <button id="downloadBtn" disabled>Download Reassembled</button>
   
   <h3>Logs:</h3>
   <div id="log"></div>
 
   <script>
     const log = (msg) => document.getElementById("log").textContent += msg + "\n";
-
-    let chunks = [];
-    let fileName = "";
-    let mimeType = "";
 
     document.getElementById("processBtn").addEventListener("click", async () => {
       const file = document.getElementById("fileInput").files[0];
@@ -33,8 +29,9 @@
         return;
       }
 
-      fileName = file.name;
-      mimeType = file.type || "application/octet-stream";
+      const fileName = file.name;
+      const mimeType = file.type || "application/octet-stream";
+      const baseName = fileName.replace(/\.[^/.]+$/, ""); // remove extension for folder
 
       log(`Reading file: ${fileName} (${file.size} bytes)`);
 
@@ -42,22 +39,16 @@
 
       log(`Base64 length: ${base64.length}`);
 
-      // Split into chunks of 500 KB (smaller to avoid JSON size issues)
+      // Split into chunks of ~500 KB
       const chunkSize = 500000;
-      chunks = [];
+      let chunks = [];
       for (let i = 0; i < base64.length; i += chunkSize) {
         chunks.push(base64.substring(i, i + chunkSize));
       }
 
       log(`Split into ${chunks.length} chunks`);
 
-      // Export chunks as JSON files
-      chunks.forEach((chunk, i) => {
-        const json = JSON.stringify({ index: i, data: chunk });
-        downloadFile(`chunk_${i + 1}.json`, json);
-      });
-
-      // Create index.json (metadata)
+      // Create index.json
       const indexJson = JSON.stringify({
         fileName,
         mimeType,
@@ -65,22 +56,23 @@
         chunkFiles: chunks.map((_, i) => `chunk_${i + 1}.json`)
       }, null, 2);
 
-      downloadFile("index.json", indexJson);
+      // Build ZIP folder
+      const zip = new JSZip();
+      const folder = zip.folder(`files/${baseName}`);
+      folder.file("index.json", indexJson);
 
-      log("Chunks + index.json ready for upload!");
-      document.getElementById("downloadBtn").disabled = false;
-    });
+      chunks.forEach((chunk, i) => {
+        const json = JSON.stringify({ index: i, data: chunk });
+        folder.file(`chunk_${i + 1}.json`, json);
+      });
 
-    document.getElementById("downloadBtn").addEventListener("click", () => {
-      log("Reassembling chunks...");
-      const base64 = chunks.join("");
-      const blob = base64ToBlob(base64, mimeType);
-
+      const content = await zip.generateAsync({ type: "blob" });
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = fileName;
+      a.href = URL.createObjectURL(content);
+      a.download = `${baseName}_chunks.zip`;
       a.click();
-      log("Download ready!");
+
+      log("ZIP with chunks + index.json ready! Upload it to your repo.");
     });
 
     function fileToBase64(file) {
@@ -90,24 +82,6 @@
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-    }
-
-    function base64ToBlob(base64, mimeType) {
-      const byteChars = atob(base64);
-      const byteNumbers = new Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) {
-        byteNumbers[i] = byteChars.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      return new Blob([byteArray], { type: mimeType });
-    }
-
-    function downloadFile(filename, content) {
-      const blob = new Blob([content], { type: "application/json" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      a.click();
     }
   </script>
 </body>
