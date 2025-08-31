@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Supabase Upload Test</title>
+  <!-- Must be before any JS that uses supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@1.35.7/dist/supabase.min.js"></script>
+</head>
+<body>
+  <input type="file" id="fileInput">
+  <button id="uploadBtn">Upload</button>
+  <ul id="filesList"></ul>
+
+  <script>
+    const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+    const SUPABASE_KEY = "YOUR-ANON-KEY";
+
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const fileInput = document.getElementById("fileInput");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const filesList = document.getElementById("filesList");
+
+    uploadBtn.addEventListener("click", async () => {
+      const file = fileInput.files[0];
+      if (!file) return alert("Select a file!");
+
+      const { data, error } = await supabaseClient.storage
+        .from("files")
+        .upload(file.name, file, { upsert: true });
+
+      if (error) alert("Upload failed: " + error.message);
+      else alert("Uploaded: " + file.name);
+    });
+  </script>
+</body>
+</html>
