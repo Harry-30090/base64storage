@@ -8,22 +8,21 @@
     body { font-family: Arial, sans-serif; padding: 20px; }
     #filesList { margin-top: 20px; }
     li { margin-bottom: 10px; }
+    button { margin-left: 10px; }
   </style>
 </head>
 <body>
   <h2>Download Files</h2>
-
   <ul id="filesList"></ul>
 
   <script>
     const SUPABASE_URL = "https://qlivbwgwrmvwfzccbgxr.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaXZid2d3cm12d2Z6Y2NiZ3hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MzU4OTMsImV4cCI6MjA3MjIxMTg5M30.dBPeaPrVDPbNOdFB4901GlELmnc9aLuKiBgRIiw98T0";
+    const SUPABASE_KEY = "YOUR-ANON-KEY";
     const BUCKET = "files";
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     const filesList = document.getElementById("filesList");
 
-    // List files and create download links
     async function listFiles() {
       filesList.innerHTML = "";
       const { data, error } = await supabaseClient.storage.from(BUCKET).list('', { limit: 100 });
@@ -35,19 +34,35 @@
       }
 
       for (const item of data) {
-        const { data: urlData } = supabaseClient.storage.from(BUCKET).getPublicUrl(item.name);
-
         const li = document.createElement("li");
-        const a = document.createElement("a");
-        a.href = urlData.publicUrl;
-        a.textContent = item.name;
-        a.download = item.name;
-        li.appendChild(a);
+        li.textContent = item.name;
+
+        const btn = document.createElement("button");
+        btn.textContent = "Download";
+        btn.addEventListener("click", async () => {
+          // Fetch file from Supabase storage
+          const { data: fileData, error: downloadError } = await supabaseClient.storage
+            .from(BUCKET)
+            .download(item.name);
+
+          if (downloadError) return alert("Download failed: " + downloadError.message);
+
+          // Create blob and trigger download
+          const url = URL.createObjectURL(fileData);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = item.name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        });
+
+        li.appendChild(btn);
         filesList.appendChild(li);
       }
     }
 
-    // Load files on page load
     listFiles();
   </script>
 </body>
