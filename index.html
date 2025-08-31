@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>File Split & Reassemble Prototype</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    button { margin: 10px 0; padding: 10px 20px; cursor: pointer; }
+    #log { white-space: pre-wrap; background: #f4f4f4; padding: 10px; }
+  </style>
+</head>
+<body>
+  <h2>File Split & Reassemble Prototype</h2>
+  
+  <input type="file" id="fileInput"><br>
+  <button id="processBtn">Process File</button>
+  <button id="downloadBtn" disabled>Download Reassembled</button>
+  
+  <h3>Logs:</h3>
+  <div id="log"></div>
+
+  <script>
+    const log = (msg) => document.getElementById("log").textContent += msg + "\n";
+
+    let chunks = [];
+    let fileName = "";
+    let mimeType = "";
+
+    document.getElementById("processBtn").addEventListener("click", async () => {
+      const file = document.getElementById("fileInput").files[0];
+      if (!file) {
+        alert("Please select a file first!");
+        return;
+      }
+
+      fileName = file.name;
+      mimeType = file.type || "application/octet-stream";
+
+      log(`Reading file: ${fileName} (${file.size} bytes)`);
+
+      const base64 = await fileToBase64(file);
+
+      log(`Base64 length: ${base64.length}`);
+
+      // Split into chunks of 500 KB (smaller to avoid JSON size issues)
+      const chunkSize = 500000;
+      chunks = [];
+      for (let i = 0; i < base64.length; i += chunkSize) {
+        chunks.push(base64.substring(i, i + chunkSize));
+      }
+
+      log(`Split into ${chunks.length} chunks`);
+
+      // Export chunks as JSON files
+      chunks.forEach((chunk, i) => {
+        const json = JSON.stringify({ index: i, data: chunk });
+        downloadFile(`chunk_${i + 1}.json`, json);
+      });
+
+      // Create index.json (metadata)
+      const indexJson = JSON.stringify({
+        fileName,
+        mimeType,
+        totalChunks: chunks.length,
+        chunkFiles: chunks.map((_, i) => `chunk_${i + 1}.json`)
+      }, null, 2);
+
+      downloadFile("index.json", indexJson);
+
+      log("Chunks + index.json ready for upload!");
+      document.getElementById("downloadBtn").disabled = false;
+    });
+
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      log("Reassembling chunks...");
+      const base64 = chunks.join("");
+      const blob = base64ToBlob(base64, mimeType);
+
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      a.click();
+      log("Download ready!");
+    });
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]); // strip "data:*/*;base64,"
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function base64ToBlob(base64, mimeType) {
+      const byteChars = atob(base64);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNumbers[i] = byteChars.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      return new Blob([byteArray], { type: mimeType });
+    }
+
+    function downloadFile(filename, content) {
+      const blob = new Blob([content], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+    }
+  </script>
+</body>
+</html>
