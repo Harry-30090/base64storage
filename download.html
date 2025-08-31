@@ -2,117 +2,81 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Reassemble & Download File</title>
+  <title>File Browser - Supabase Storage</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    select, button { margin: 5px 0; padding: 10px; }
-    #log { white-space: pre-wrap; background: #f4f4f4; padding: 10px; margin-top: 10px; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+    h2 { margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+    th { background: #eee; }
+    tr:hover { background: #f1f1f1; }
+    button { padding: 6px 12px; cursor: pointer; border: none; border-radius: 4px; background: #007bff; color: #fff; }
+    button:hover { background: #0056b3; }
   </style>
 </head>
 <body>
-  <h2>Download & Reassemble File</h2>
-  
-  <p>Select a file from the repository:</p>
-  <select id="fileSelect"></select>
-  <br>
-  <button id="fetchBtn">Fetch & Download</button>
+  <h2>📂 File Browser</h2>
 
-  <h3>Logs:</h3>
-  <div id="log"></div>
+  <table>
+    <thead>
+      <tr>
+        <th>File Name</th>
+        <th>Size (KB)</th>
+        <th>Download</th>
+      </tr>
+    </thead>
+    <tbody id="fileTable"></tbody>
+  </table>
 
   <script>
-    const log = (msg) => document.getElementById("log").textContent += msg + "\n";
+    // 🔹 Replace with your Supabase project details
+    const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+    const SUPABASE_KEY = "YOUR-ANON-KEY";
+    const BUCKET = "files";
 
-    // 🔹 CONFIG — replace with your repo details
-    const username = "Harry-30090";
-    const repo = "base64storage";
-    const branch = "main";
+    const supabase = supabasejs.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const fileTable = document.getElementById("fileTable");
 
-    // Base GitHub API URL
-    const apiUrl = `https://api.github.com/repos/${username}/${repo}/contents/files?ref=${branch}`;
-    const rawBase = `https://raw.githubusercontent.com/${username}/${repo}/${branch}/files/`;
+    async function listFiles() {
+      fileTable.innerHTML = "<tr><td colspan='3'>Loading...</td></tr>";
 
-    async function loadFiles() {
-      log("Fetching file list...");
-      try {
-        const res = await fetch(apiUrl);
-        if (!res.ok) throw new Error("Failed to fetch file list.");
-        const data = await res.json();
-
-        const select = document.getElementById("fileSelect");
-        select.innerHTML = "";
-
-        // Populate dropdown with folder names
-        data.forEach(item => {
-          if (item.type === "dir") {
-            const opt = document.createElement("option");
-            opt.value = item.name;
-            opt.textContent = item.name;
-            select.appendChild(opt);
-          }
-        });
-
-        log("File list loaded.");
-      } catch (err) {
-        log("Error: " + err.message);
-      }
-    }
-
-    document.getElementById("fetchBtn").addEventListener("click", async () => {
-      const folder = document.getElementById("fileSelect").value;
-      if (!folder) {
-        alert("Please select a file folder!");
+      const { data, error } = await supabase.storage.from(BUCKET).list("", { limit: 100 });
+      if (error) {
+        fileTable.innerHTML = `<tr><td colspan='3'>Error: ${error.message}</td></tr>`;
         return;
       }
 
-      const indexUrl = rawBase + folder + "/index.json";
-
-      log("Fetching index.json...");
-      try {
-        const res = await fetch(indexUrl);
-        if (!res.ok) throw new Error("Failed to fetch index.json");
-        const indexData = await res.json();
-
-        log(`File: ${indexData.fileName}`);
-        log(`Type: ${indexData.mimeType}`);
-        log(`Chunks: ${indexData.totalChunks}`);
-
-        let chunks = [];
-        for (let i = 0; i < indexData.chunkFiles.length; i++) {
-          const chunkUrl = rawBase + folder + "/" + indexData.chunkFiles[i];
-          log(`Fetching ${chunkUrl}...`);
-          const chunkRes = await fetch(chunkUrl);
-          const chunkData = await chunkRes.json();
-          chunks[chunkData.index] = chunkData.data;
-        }
-
-        log("Reassembling...");
-        const base64 = chunks.join("");
-        const blob = base64ToBlob(base64, indexData.mimeType);
-
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = indexData.fileName;
-        a.click();
-
-        log("Download complete!");
-      } catch (err) {
-        log("Error: " + err.message);
+      fileTable.innerHTML = "";
+      if (!data || data.length === 0) {
+        fileTable.innerHTML = "<tr><td colspan='3'>No files found.</td></tr>";
+        return;
       }
-    });
 
-    function base64ToBlob(base64, mimeType) {
-      const byteChars = atob(base64);
-      const byteNumbers = new Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) {
-        byteNumbers[i] = byteChars.charCodeAt(i);
+      for (const item of data) {
+        const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(item.name);
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${item.name}</td>
+          <td>${(item.metadata?.size / 1024).toFixed(1) || "?"}</td>
+          <td><button onclick="downloadFile('${urlData.publicUrl}', '${item.name}')">Download</button></td>
+        `;
+        fileTable.appendChild(tr);
       }
-      const byteArray = new Uint8Array(byteNumbers);
-      return new Blob([byteArray], { type: mimeType });
     }
 
-    // Load file list on page load
-    loadFiles();
+    function downloadFile(url, name) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    // Load files on page load
+    listFiles();
   </script>
 </body>
 </html>
