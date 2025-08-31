@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reassemble & Download File</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    input, button { margin: 5px 0; padding: 10px; }
+    #log { white-space: pre-wrap; background: #f4f4f4; padding: 10px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h2>Download & Reassemble File</h2>
+  
+  <p>Enter the URL to <b>index.json</b> in your GitHub repo:</p>
+  <input type="text" id="indexUrl" size="80" placeholder="https://raw.githubusercontent.com/username/repo/branch/files/index.json">
+  <br>
+  <button id="fetchBtn">Fetch & Download</button>
+
+  <h3>Logs:</h3>
+  <div id="log"></div>
+
+  <script>
+    const log = (msg) => document.getElementById("log").textContent += msg + "\n";
+
+    document.getElementById("fetchBtn").addEventListener("click", async () => {
+      const indexUrl = document.getElementById("indexUrl").value.trim();
+      if (!indexUrl) {
+        alert("Please enter index.json URL");
+        return;
+      }
+
+      log("Fetching index.json...");
+      try {
+        const res = await fetch(indexUrl);
+        if (!res.ok) throw new Error("Failed to fetch index.json");
+        const indexData = await res.json();
+
+        log(`File: ${indexData.fileName}`);
+        log(`Type: ${indexData.mimeType}`);
+        log(`Chunks: ${indexData.totalChunks}`);
+
+        const baseUrl = indexUrl.substring(0, indexUrl.lastIndexOf("/") + 1);
+
+        let chunks = [];
+        for (let i = 0; i < indexData.chunkFiles.length; i++) {
+          const chunkUrl = baseUrl + indexData.chunkFiles[i];
+          log(`Fetching ${chunkUrl}...`);
+          const chunkRes = await fetch(chunkUrl);
+          const chunkData = await chunkRes.json();
+          chunks[chunkData.index] = chunkData.data;
+        }
+
+        log("Reassembling...");
+        const base64 = chunks.join("");
+        const blob = base64ToBlob(base64, indexData.mimeType);
+
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = indexData.fileName;
+        a.click();
+
+        log("Download complete!");
+      } catch (err) {
+        log("Error: " + err.message);
+      }
+    });
+
+    function base64ToBlob(base64, mimeType) {
+      const byteChars = atob(base64);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteNumbers[i] = byteChars.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      return new Blob([byteArray], { type: mimeType });
+    }
+  </script>
+</body>
+</html>
