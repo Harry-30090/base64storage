@@ -51,7 +51,6 @@
 
     // List files in the bucket
     async function listFiles() {
-      filesList.innerHTML = "";
       const { data, error } = await supabase.storage.from(BUCKET).list("", { limit: 100 });
 
       if (error) {
@@ -77,6 +76,7 @@
   </script>
 </body>
 </html>
+
 
 
 
