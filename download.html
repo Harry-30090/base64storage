@@ -5,15 +5,15 @@
   <title>Reassemble & Download File</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
-    input, button { margin: 5px 0; padding: 10px; }
+    select, button { margin: 5px 0; padding: 10px; }
     #log { white-space: pre-wrap; background: #f4f4f4; padding: 10px; margin-top: 10px; }
   </style>
 </head>
 <body>
   <h2>Download & Reassemble File</h2>
   
-  <p>Enter the URL to <b>index.json</b> in your GitHub repo:</p>
-  <input type="text" id="indexUrl" size="80" placeholder="https://raw.githubusercontent.com/username/repo/branch/files/index.json">
+  <p>Select a file from the repository:</p>
+  <select id="fileSelect"></select>
   <br>
   <button id="fetchBtn">Fetch & Download</button>
 
@@ -23,12 +23,49 @@
   <script>
     const log = (msg) => document.getElementById("log").textContent += msg + "\n";
 
+    // 🔹 CONFIG — replace with your repo details
+    const username = "Harry-30090";
+    const repo = "base64storage";
+    const branch = "main";
+
+    // Base GitHub API URL
+    const apiUrl = `https://api.github.com/repos/${username}/${repo}/contents/files?ref=${branch}`;
+    const rawBase = `https://raw.githubusercontent.com/${username}/${repo}/${branch}/files/`;
+
+    async function loadFiles() {
+      log("Fetching file list...");
+      try {
+        const res = await fetch(apiUrl);
+        if (!res.ok) throw new Error("Failed to fetch file list.");
+        const data = await res.json();
+
+        const select = document.getElementById("fileSelect");
+        select.innerHTML = "";
+
+        // Populate dropdown with folder names
+        data.forEach(item => {
+          if (item.type === "dir") {
+            const opt = document.createElement("option");
+            opt.value = item.name;
+            opt.textContent = item.name;
+            select.appendChild(opt);
+          }
+        });
+
+        log("File list loaded.");
+      } catch (err) {
+        log("Error: " + err.message);
+      }
+    }
+
     document.getElementById("fetchBtn").addEventListener("click", async () => {
-      const indexUrl = document.getElementById("indexUrl").value.trim();
-      if (!indexUrl) {
-        alert("Please enter index.json URL");
+      const folder = document.getElementById("fileSelect").value;
+      if (!folder) {
+        alert("Please select a file folder!");
         return;
       }
+
+      const indexUrl = rawBase + folder + "/index.json";
 
       log("Fetching index.json...");
       try {
@@ -40,11 +77,9 @@
         log(`Type: ${indexData.mimeType}`);
         log(`Chunks: ${indexData.totalChunks}`);
 
-        const baseUrl = indexUrl.substring(0, indexUrl.lastIndexOf("/") + 1);
-
         let chunks = [];
         for (let i = 0; i < indexData.chunkFiles.length; i++) {
-          const chunkUrl = baseUrl + indexData.chunkFiles[i];
+          const chunkUrl = rawBase + folder + "/" + indexData.chunkFiles[i];
           log(`Fetching ${chunkUrl}...`);
           const chunkRes = await fetch(chunkUrl);
           const chunkData = await chunkRes.json();
@@ -75,6 +110,9 @@
       const byteArray = new Uint8Array(byteNumbers);
       return new Blob([byteArray], { type: mimeType });
     }
+
+    // Load file list on page load
+    loadFiles();
   </script>
 </body>
 </html>
