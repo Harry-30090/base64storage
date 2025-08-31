@@ -2,87 +2,78 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>File Split & Save to Subfolder</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <title>Supabase File Storage</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
-    button { margin: 10px 0; padding: 10px 20px; cursor: pointer; }
-    #log { white-space: pre-wrap; background: #f4f4f4; padding: 10px; }
+    input, button { margin: 5px 0; padding: 10px; }
+    #filesList { margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h2>File Split & Save (Base64 JSON)</h2>
-  
-  <input type="file" id="fileInput"><br>
-  <button id="processBtn">Process File</button>
-  
-  <h3>Logs:</h3>
-  <div id="log"></div>
+  <h2>Supabase File Storage Demo</h2>
+
+  <h3>Upload a File</h3>
+  <input type="file" id="fileInput">
+  <button id="uploadBtn">Upload</button>
+
+  <h3>Available Files</h3>
+  <ul id="filesList"></ul>
 
   <script>
-    const log = (msg) => document.getElementById("log").textContent += msg + "\n";
+    // 🔹 Replace with your Supabase project details
+    const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+    const SUPABASE_KEY = "YOUR-ANON-KEY";
+    const BUCKET = "files";
 
-    document.getElementById("processBtn").addEventListener("click", async () => {
-      const file = document.getElementById("fileInput").files[0];
-      if (!file) {
-        alert("Please select a file first!");
+    const supabase = supabasejs.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const fileInput = document.getElementById("fileInput");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const filesList = document.getElementById("filesList");
+
+    // Upload a file
+    uploadBtn.addEventListener("click", async () => {
+      const file = fileInput.files[0];
+      if (!file) return alert("Please select a file!");
+
+      const { data, error } = await supabase.storage
+        .from(BUCKET)
+        .upload(file.name, file, { upsert: true }); // overwrite if same name
+
+      if (error) {
+        alert("Upload failed: " + error.message);
+      } else {
+        alert("Uploaded: " + file.name);
+        listFiles();
+      }
+    });
+
+    // List files in the bucket
+    async function listFiles() {
+      filesList.innerHTML = "";
+      const { data, error } = await supabase.storage.from(BUCKET).list("", { limit: 100 });
+
+      if (error) {
+        console.error(error);
         return;
       }
 
-      const fileName = file.name;
-      const mimeType = file.type || "application/octet-stream";
-      const baseName = fileName.replace(/\.[^/.]+$/, ""); // remove extension for folder
+      for (const item of data) {
+        const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(item.name);
 
-      log(`Reading file: ${fileName} (${file.size} bytes)`);
-
-      const base64 = await fileToBase64(file);
-
-      log(`Base64 length: ${base64.length}`);
-
-      // Split into chunks of ~500 KB
-      const chunkSize = 500000;
-      let chunks = [];
-      for (let i = 0; i < base64.length; i += chunkSize) {
-        chunks.push(base64.substring(i, i + chunkSize));
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = urlData.publicUrl;
+        a.textContent = item.name;
+        a.download = item.name;
+        li.appendChild(a);
+        filesList.appendChild(li);
       }
-
-      log(`Split into ${chunks.length} chunks`);
-
-      // Create index.json
-      const indexJson = JSON.stringify({
-        fileName,
-        mimeType,
-        totalChunks: chunks.length,
-        chunkFiles: chunks.map((_, i) => `chunk_${i + 1}.json`)
-      }, null, 2);
-
-      // Build ZIP folder
-      const zip = new JSZip();
-      const folder = zip.folder(`files/${baseName}`);
-      folder.file("index.json", indexJson);
-
-      chunks.forEach((chunk, i) => {
-        const json = JSON.stringify({ index: i, data: chunk });
-        folder.file(`chunk_${i + 1}.json`, json);
-      });
-
-      const content = await zip.generateAsync({ type: "blob" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(content);
-      a.download = `${baseName}_chunks.zip`;
-      a.click();
-
-      log("ZIP with chunks + index.json ready! Upload it to your repo.");
-    });
-
-    function fileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(",")[1]); // strip "data:*/*;base64,"
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
     }
+
+    // Load list on page load
+    listFiles();
   </script>
 </body>
 </html>
