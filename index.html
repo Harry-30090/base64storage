@@ -51,13 +51,13 @@
 
     // List files in the bucket
     async function listFiles() {
-    const { data, error } = await supabaseClient.storage.from('files').list('', { limit: 100 });
-    if (error) return console.error(error);
-    console.log("Files:", data);
-
+      filesList.innerHTML = "";
+      const { data, error } = await supabaseClient.storage.from(BUCKET).list('', { limit: 100 });
+      if (error) return console.error(error);
+  
       for (const item of data) {
-        const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(item.name);
-
+        const { data: urlData } = supabaseClient.storage.from(BUCKET).getPublicUrl(item.name);
+    
         const li = document.createElement("li");
         const a = document.createElement("a");
         a.href = urlData.publicUrl;
@@ -68,11 +68,13 @@
       }
     }
 
+
     // Load list on page load
     listFiles();
   </script>
 </body>
 </html>
+
 
 
 
