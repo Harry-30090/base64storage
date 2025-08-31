@@ -37,7 +37,7 @@
       const file = fileInput.files[0];
       if (!file) return alert("Please select a file!");
 
-      const { data, error } = await supabase.storage
+      const { data, error } = await supabaseClient.storage
         .from(BUCKET)
         .upload(file.name, file, { upsert: true }); // overwrite if same name
 
@@ -74,6 +74,7 @@
   </script>
 </body>
 </html>
+
 
 
 
