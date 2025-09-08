@@ -37,9 +37,11 @@
       const file = fileInput.files[0];
       if (!file) return alert("Please select a file!");
 
+      const encodedName = encodeURIComponent(file.name);
       const { data, error } = await supabaseClient.storage
         .from(BUCKET)
-        .upload(file.name, file, { upsert: true }); // overwrite if same name
+        .upload(encodedName, file, { upsert: true });
+
 
       if (error) {
         alert("Upload failed: " + error.message);
@@ -60,9 +62,10 @@
     
         const li = document.createElement("li");
         const a = document.createElement("a");
+        const decodedName = decodeURIComponent(item.name);
         a.href = urlData.publicUrl;
-        a.textContent = item.name;
-        a.download = item.name;
+        a.textContent = decodedName;
+        a.download = decodedName;
         li.appendChild(a);
         filesList.appendChild(li);
       }
@@ -74,6 +77,7 @@
   </script>
 </body>
 </html>
+
 
 
 
