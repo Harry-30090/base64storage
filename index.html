@@ -8,7 +8,6 @@
     body { font-family: Arial, sans-serif; padding: 20px; }
     input, button { margin: 5px 0; padding: 10px; }
     #filesList { margin-top: 20px; }
-    li { margin-bottom: 10px; }
   </style>
 </head>
 <body>
@@ -22,7 +21,7 @@
   <ul id="filesList"></ul>
 
   <script>
-    // 🔹 Supabase project details
+    // 🔹 Replace with your Supabase project details
     const SUPABASE_URL = "https://qlivbwgwrmvwfzccbgxr.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaXZid2d3cm12d2Z6Y2NiZ3hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MzU4OTMsImV4cCI6MjA3MjIxMTg5M30.dBPeaPrVDPbNOdFB4901GlELmnc9aLuKiBgRIiw98T0";
     const BUCKET = "files";
@@ -38,12 +37,9 @@
       const file = fileInput.files[0];
       if (!file) return alert("Please select a file!");
 
-      // Encode filename so Supabase accepts it
-      const encodedName = encodeURIComponent(file.name);
-
-      const { error } = await supabaseClient.storage
+      const { data, error } = await supabaseClient.storage
         .from(BUCKET)
-        .upload(encodedName, file, { upsert: true });
+        .upload(file.name, file, { upsert: true }); // overwrite if same name
 
       if (error) {
         alert("Upload failed: " + error.message);
@@ -58,23 +54,25 @@
       filesList.innerHTML = "";
       const { data, error } = await supabaseClient.storage.from(BUCKET).list('', { limit: 100 });
       if (error) return console.error(error);
-
+  
       for (const item of data) {
-        const decodedName = decodeURIComponent(item.name);
         const { data: urlData } = supabaseClient.storage.from(BUCKET).getPublicUrl(item.name);
-
+    
         const li = document.createElement("li");
         const a = document.createElement("a");
         a.href = urlData.publicUrl;
-        a.textContent = decodedName;
-        a.download = decodedName;
+        a.textContent = item.name;
+        a.download = item.name;
         li.appendChild(a);
         filesList.appendChild(li);
       }
     }
+
 
     // Load list on page load
     listFiles();
   </script>
 </body>
 </html>
+
+
