@@ -1,78 +1,216 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Supabase File Storage</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.56.1/dist/umd/supabase.min.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    input, button { margin: 5px 0; padding: 10px; }
-    #filesList { margin-top: 20px; }
-  </style>
+<meta charset="UTF-8">
+<title>ホーム</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.56.1/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --bg: hsl(199 83% 1%);
+    --surface: hsl(195 53% 4%);
+    --top: hsl(194 30% 8%);
+    --text-strong: hsl(195 100% 93%);
+    --text-secondary: hsl(195 20% 68%);
+    --border: hsl(194 22% 27%);
+    --primary: hsl(193 64% 62%);
+  }
+
+  body {
+    font-family: Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text-secondary);
+    padding: 40px;
+    text-align: center;
+  }
+
+  h2, h3 {
+    color: var(--text-strong);
+    margin-bottom: 20px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px auto;
+    max-width: 500px;
+    box-shadow: 0 2px 4px hsl(0 0% 0% / 0.6), 0 6px 12px hsl(0 0% 0% / 0.3);
+  }
+
+  .upload-controls {
+    display: flex;
+    flex-direction: column; /* 縦並びにする */
+    gap: 10px; /* ボタン間に余白 */
+    align-items: center; /* 中央揃え */
+  }
+
+
+  /* Buttons */
+  .btn {
+    display: inline-block;
+    padding: 12px 24px;
+    margin: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--text-strong);
+    background-color: var(--top);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  .btn:hover { background-color: hsl(194 30% 12%); }
+  .btn.primary { background-color: var(--primary); color: var(--bg); }
+  .btn.primary:hover { background-color: hsl(193 64% 72%); }
+
+  #fileInput { display: none; }
+
+  #filesList {
+    margin-top: 20px;
+    list-style: none;
+    padding: 0;
+  }
+  #filesList li {
+    margin: 12px 0;
+    background: var(--top);
+    color: var(--text-strong);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  /* Toast notifications */
+  .toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+  }
+  .toast {
+    background: var(--top);
+    color: var(--text-strong);
+    padding: 12px 20px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 4px hsl(0 0% 0% / 0.6), 0 6px 12px hsl(0 0% 0% / 0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-width: 200px;
+    animation: slideIn 0.3s ease;
+  }
+  .toast button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+  }
+  .toast button:hover { color: var(--text-strong); }
+
+  @keyframes slideIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+</style>
 </head>
 <body>
-  <h2>Supabase File Storage Demo</h2>
+<h2>ファイル移行</h2>
 
-  <h3>Upload a File</h3>
+<div class="card">
+  <h3>ファイルをアップロード</h3>
   <input type="file" id="fileInput">
-  <button id="uploadBtn">Upload</button>
+  <div style="display:flex; gap:10px; justify-content:center; margin-bottom:10px;">
+    <label for="fileInput" class="btn">ファイルを選択する</label>
+    <button id="uploadBtn" class="btn primary">送信</button>
+  </div>
+  <div id="selectedFileName" style="color: var(--text-strong)">
+    ファイルが選択されていません
+  </div>
+</div>
 
-  <h3>Available Files</h3>
+
+<div class="card">
+  <h3>送信済みのファイル</h3>
   <ul id="filesList"></ul>
+</div>
 
-  <script>
-    // 🔹 Replace with your Supabase project details
-    const SUPABASE_URL = "https://qlivbwgwrmvwfzccbgxr.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaXZid2d3cm12d2Z6Y2NiZ3hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MzU4OTMsImV4cCI6MjA3MjIxMTg5M30.dBPeaPrVDPbNOdFB4901GlELmnc9aLuKiBgRIiw98T0";
-    const BUCKET = "files";
+<div class="toast-container" id="toastContainer"></div>
 
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+<script>
+const SUPABASE_URL = "https://qlivbwgwrmvwfzccbgxr.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaXZid2d3cm12d2Z6Y2NiZ3hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MzU4OTMsImV4cCI6MjA3MjIxMTg5M30.dBPeaPrVDPbNOdFB4901GlELmnc9aLuKiBgRIiw98T0";
+const BUCKET = "files";
 
-    const fileInput = document.getElementById("fileInput");
-    const uploadBtn = document.getElementById("uploadBtn");
-    const filesList = document.getElementById("filesList");
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Upload a file
-    uploadBtn.addEventListener("click", async () => {
-      const file = fileInput.files[0];
-      if (!file) return alert("Please select a file!");
+const fileInput = document.getElementById("fileInput");
+const uploadBtn = document.getElementById("uploadBtn");
+const filesList = document.getElementById("filesList");
+const toastContainer = document.getElementById("toastContainer");
 
-      const { data, error } = await supabaseClient.storage
-        .from(BUCKET)
-        .upload(file.name, file, { upsert: true }); // overwrite if same name
+function showToast(message) {
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.innerHTML = `<span>${message}</span><button>&times;</button>`;
+  toast.querySelector("button").addEventListener("click", () => {
+    toastContainer.removeChild(toast);
+  });
+  toastContainer.appendChild(toast);
 
-      if (error) {
-        alert("Upload failed: " + error.message);
-      } else {
-        alert("Uploaded: " + file.name);
-        listFiles();
-      }
-    });
+  setTimeout(() => {
+    if (toastContainer.contains(toast)) toastContainer.removeChild(toast);
+  }, 4000);
+}
 
-    // List files in the bucket
-    async function listFiles() {
-      filesList.innerHTML = "";
-      const { data, error } = await supabaseClient.storage.from(BUCKET).list('', { limit: 100 });
-      if (error) return console.error(error);
-  
-      for (const item of data) {
-        const { data: urlData } = supabaseClient.storage.from(BUCKET).getPublicUrl(item.name);
-    
-        const li = document.createElement("li");
-        const a = document.createElement("a");
-        a.href = urlData.publicUrl;
-        a.textContent = item.name;
-        a.download = item.name;
-        li.appendChild(a);
-        filesList.appendChild(li);
-      }
-    }
+// ファイルアップロード
+uploadBtn.addEventListener("click", async () => {
+  const file = fileInput.files[0];
+  if (!file) return showToast("ファイルを選択してください!");
+
+  const { error } = await supabaseClient.storage
+    .from(BUCKET)
+    .upload(file.name, file, { upsert: true });
+
+  if (error) {
+    showToast("アップロードが失敗しました: " + error.message);
+  } else {
+    // リストに追加
+    const li = document.createElement("li");
+    li.textContent = file.name;
+    filesList.prepend(li);
+
+    showToast(`"${file.name}" のアップロードが成功しました。`);
+  }
+});
+
+const selectedFileName = document.getElementById("selectedFileName");
+fileInput.addEventListener("change", () => {
+  if (fileInput.files.length > 0) {
+    selectedFileName.textContent = fileInput.files[0].name;
+  } else {
+    selectedFileName.textContent = "ファイルが選択されていません";
+  }
+});
 
 
-    // Load list on page load
-    listFiles();
-  </script>
+
+// 初期ファイル取得
+async function listFiles() {
+  filesList.innerHTML = "";
+  const { data, error } = await supabaseClient.storage.from(BUCKET).list('', { limit: 100 });
+  if (error) return console.error(error);
+
+  data.forEach(item => {
+    const li = document.createElement("li");
+    li.textContent = item.name;
+    filesList.appendChild(li);
+  });
+}
+
+listFiles();
+</script>
 </body>
 </html>
-
-
