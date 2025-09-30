@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <title>ホーム</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.56.1/dist/umd/supabase.min.js"></script>
-<link rel="icon" type="image/x-icon" href="favicon.png">
 <style>
   :root {
     --bg: hsl(199 83% 1%);
@@ -14,6 +13,8 @@
     --text-secondary: hsl(195 20% 68%);
     --border: hsl(194 22% 27%);
     --primary: hsl(193 64% 62%);
+    --danger: hsl(9 26% 64%);
+    --success: hsl(146 17% 59%);
   }
 
   body {
@@ -81,6 +82,18 @@
     border: 1px solid var(--border);
   }
 
+
+    /* 追加: リンクの色カスタム */
+  a {
+    color: var(--primary);         /* 通常時の色 */
+    text-decoration: none;         /* 下線消し */
+  }
+
+  a:hover {
+    color: var(--text-strong);     /* ホバー時の色 */
+    text-decoration: underline;    /* ホバー時に下線 */
+  }
+
   /* Toast notifications */
   .toast-container {
     position: fixed;
@@ -110,6 +123,15 @@
     cursor: pointer;
   }
   .toast button:hover { color: var(--text-strong); }
+
+  .toast.success {
+  border-left: 5px solid var(--success);
+  color: var(--success);
+  }
+  .toast.error {
+    border-left: 5px solid var(--danger);
+    color: var(--danger);
+  }
 
   @keyframes slideIn {
     from { transform: translateY(-20px); opacity: 0; }
@@ -152,9 +174,9 @@ const uploadBtn = document.getElementById("uploadBtn");
 const filesList = document.getElementById("filesList");
 const toastContainer = document.getElementById("toastContainer");
 
-function showToast(message) {
+function showToast(message, type = "info") {
   const toast = document.createElement("div");
-  toast.className = "toast";
+  toast.className = `toast ${type}`;
   toast.innerHTML = `<span>${message}</span><button>&times;</button>`;
   toast.querySelector("button").addEventListener("click", () => {
     toastContainer.removeChild(toast);
@@ -166,6 +188,7 @@ function showToast(message) {
   }, 4000);
 }
 
+
 // ファイルアップロード
 uploadBtn.addEventListener("click", async () => {
   const file = fileInput.files[0];
@@ -176,15 +199,15 @@ uploadBtn.addEventListener("click", async () => {
     .upload(file.name, file, { upsert: true });
 
   if (error) {
-    showToast("アップロードが失敗しました: " + error.message);
+  showToast("アップロードが失敗しました: " + error.message, "error");
   } else {
-    // リストに追加
     const li = document.createElement("li");
     li.textContent = file.name;
     filesList.prepend(li);
 
-    showToast(`"${file.name}" のアップロードが成功しました。`);
+    showToast(`"${file.name}" のアップロードが成功しました。`, "success");
   }
+
 });
 
 const selectedFileName = document.getElementById("selectedFileName");
@@ -200,19 +223,24 @@ fileInput.addEventListener("change", () => {
 
 // 初期ファイル取得
 async function listFiles() {
-  filesList.innerHTML = "";
-  const { data, error } = await supabaseClient.storage.from(BUCKET).list('', { limit: 100 });
-  if (error) return console.error(error);
-
-  data.forEach(item => {
-    const li = document.createElement("li");
-    li.textContent = item.name;
-    filesList.appendChild(li);
-  });
+    filesList.innerHTML = "";
+    const { data, error } = await supabaseClient.storage.from(BUCKET).list('', { limit: 100 });
+    if (error) return console.error(error);
+  
+    for (const item of data) {
+        const { data: urlData } = supabaseClient.storage.from(BUCKET).getPublicUrl(item.name);
+    
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = urlData.publicUrl;
+        a.textContent = item.name;
+        a.download = item.name;
+        li.appendChild(a);
+        filesList.appendChild(li);
+    }
 }
 
 listFiles();
 </script>
 </body>
 </html>
-
